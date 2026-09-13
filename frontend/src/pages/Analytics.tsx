@@ -1,6 +1,6 @@
 import React from 'react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
-import { Clock, Bot, Activity, Zap, ArrowRight } from 'lucide-react';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
+import { Clock, Bot, Activity, Zap } from 'lucide-react';
 
 const timeData = [
   { name: 'Mon', manual: 38, automated: 4 },

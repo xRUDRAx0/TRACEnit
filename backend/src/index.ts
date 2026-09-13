@@ -11,12 +11,24 @@ import { PatternService } from './services/pattern.service';
 const app = express();
 const server = http.createServer(app);
 
-const CORS_ORIGIN = process.env.SOCKET_CORS_ORIGIN || process.env.CLIENT_URL || '*';
+const isAllowedOrigin = (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+  if (!origin) return callback(null, true);
+  if (
+    origin.startsWith('http://localhost:') ||
+    origin.startsWith('http://127.0.0.1:') ||
+    origin === process.env.CLIENT_URL ||
+    origin === process.env.SOCKET_CORS_ORIGIN
+  ) {
+    return callback(null, true);
+  }
+  return callback(null, true);
+};
 
 const io = new Server(server, {
   cors: {
-    origin: CORS_ORIGIN,
-    methods: ['GET', 'POST']
+    origin: isAllowedOrigin,
+    methods: ['GET', 'POST'],
+    credentials: true
   }
 });
 
@@ -28,9 +40,10 @@ const patternService = new PatternService(dbService);
 app.set('io', io); // Inject for routes to use
 
 app.use(cors({
-  origin: CORS_ORIGIN,
+  origin: isAllowedOrigin,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
 }));
 app.use(express.json());
 

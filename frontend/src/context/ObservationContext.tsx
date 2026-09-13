@@ -1,18 +1,8 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { io, Socket } from 'socket.io-client';
+import React, { useState, useEffect } from 'react';
+import { io } from 'socket.io-client';
+import type { Socket } from 'socket.io-client';
 import { API_URL, SOCKET_URL } from '../config';
-
-interface ObservationContextType {
-  isActive: boolean;
-  toggleObservation: () => Promise<void>;
-  isLoading: boolean;
-  liveEvents: any[];
-  socket: Socket | null;
-  currentSessionId: string | null;
-  livePattern: any;
-}
-
-const ObservationContext = createContext<ObservationContextType | undefined>(undefined);
+import { ObservationContext } from './ObservationContextDefinition';
 
 export function ObservationProvider({ children }: { children: React.ReactNode }) {
   const [isActive, setIsActive] = useState(false);
@@ -70,7 +60,7 @@ export function ObservationProvider({ children }: { children: React.ReactNode })
   const toggleObservation = async () => {
     const newState = !isActive;
     setIsActive(newState); // Optimistic UI update
-    
+
     try {
       await fetch(`${API_URL}/api/settings/observation`, {
         method: 'POST',
@@ -88,12 +78,4 @@ export function ObservationProvider({ children }: { children: React.ReactNode })
       {children}
     </ObservationContext.Provider>
   );
-}
-
-export function useObservation() {
-  const context = useContext(ObservationContext);
-  if (context === undefined) {
-    throw new Error('useObservation must be used within an ObservationProvider');
-  }
-  return context;
 }

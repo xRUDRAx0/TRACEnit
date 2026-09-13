@@ -1,78 +1,111 @@
 import React, { useState } from 'react';
-import { Settings as SettingsIcon, Shield, Eye, Lock, Zap, Bot, Bell, Monitor, Sun, Moon } from 'lucide-react';
-import { useObservation } from '../context/ObservationContext';
-import { useTheme } from '../context/ThemeContext';
-import TraceLogo from '../components/TraceLogo';
+import { Shield, Eye, Lock, Bot, Bell, User, Key, CheckCircle2, Settings as SettingsIcon } from 'lucide-react';
+import { useObservation } from '../hooks/useObservation';
+import { useAuth } from '../hooks/useAuth';
+import PageHeader from '../components/ui/PageHeader';
 
 export default function Settings() {
   const { isActive, toggleObservation, isLoading } = useObservation();
-  const { theme, setTheme } = useTheme();
+  const { user, isDemoUser, resetPassword } = useAuth();
   
-  const [activeTab, setActiveTab] = useState('Appearance');
+  const [activeTab, setActiveTab] = useState('Account');
+  const [resetSent, setResetSent] = useState(false);
 
-  const tabs = ['Appearance', 'Observation', 'Privacy', 'Automation Safety', 'AI & Logic', 'Notifications'];
+  const tabs = ['Account', 'Observation', 'Privacy', 'Automation Safety', 'AI & Logic', 'Notifications'];
+
+  const userName = user?.user_metadata?.full_name || (user?.email ? user.email.split('@')[0] : (isDemoUser ? 'Demo Operator' : 'Operator'));
+  const userEmail = user?.email || (isDemoUser ? 'demo@trace.ai' : 'operator@trace.ai');
+
+  const handlePasswordReset = async () => {
+    if (userEmail) {
+      await resetPassword(userEmail);
+      setResetSent(true);
+    }
+  };
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500 pb-12 pt-4 max-w-[1400px] mx-auto">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-3xl font-black text-text-primary tracking-tight mb-2">Settings</h1>
-          <p className="text-sm text-text-secondary">Manage observation preferences, privacy, automation safety, and appearance.</p>
-        </div>
-      </div>
+    <div className="space-y-8 pb-12 max-w-[1400px] mx-auto">
+      <PageHeader
+        title="Workspace Settings"
+        description="Account and workspace configuration."
+        icon={SettingsIcon}
+        badgeText="TRACE Configuration"
+        badgeType="accent"
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-        <div className="md:col-span-1 space-y-2">
+        {/* Navigation Sidebar Tabs */}
+        <div className="md:col-span-1 space-y-1.5">
           {tabs.map((tab, i) => (
             <button 
               key={i} 
               onClick={() => setActiveTab(tab)}
-              className={`w-full text-left px-5 py-3 rounded text-[11px] font-bold uppercase tracking-widest transition-colors ${activeTab === tab ? 'bg-text-primary text-background' : 'text-text-secondary hover:bg-surface-secondary hover:text-text-primary'}`}
+              className={`w-full text-left px-4 py-2.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                activeTab === tab 
+                  ? 'bg-text-primary text-white shadow-xs' 
+                  : 'text-text-secondary hover:bg-surface-secondary hover:text-text-primary'
+              }`}
             >
               {tab}
             </button>
           ))}
         </div>
 
+        {/* Settings Tab Content */}
         <div className="md:col-span-3 space-y-6">
-          
-          {/* Appearance Settings */}
-          {activeTab === 'Appearance' && (
-            <section className="solid-card p-8">
-              <div className="flex items-center gap-3 mb-8">
-                <Monitor className="w-5 h-5 text-text-primary" />
-                <h2 className="text-xl font-bold text-text-primary">Appearance Settings</h2>
+
+          {/* Account Settings */}
+          {activeTab === 'Account' && (
+            <section className="solid-card p-6 sm:p-8 rounded-xl border border-border bg-surface">
+              <div className="flex items-center gap-3 mb-6">
+                <User className="w-5 h-5 text-accent" />
+                <h2 className="text-xl font-bold text-text-primary">Account & Profile</h2>
               </div>
               
               <div className="space-y-6">
-                <div>
-                  <h3 className="text-xs font-bold text-text-muted uppercase tracking-widest mb-4">Theme Preference</h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                    <button 
-                      onClick={() => setTheme('light')}
-                      className={`flex flex-col items-center justify-center p-6 rounded border transition-all ${theme === 'light' ? 'border-text-primary ring-1 ring-text-primary bg-surface-secondary' : 'border-border bg-surface hover:bg-surface-secondary'}`}
-                    >
-                      <Sun className={`w-8 h-8 mb-4 ${theme === 'light' ? 'text-text-primary' : 'text-text-secondary'}`} />
-                      <span className={`text-xs font-bold ${theme === 'light' ? 'text-text-primary' : 'text-text-secondary'}`}>Light Mode</span>
-                    </button>
+                <div className="flex items-center gap-4 p-4 rounded-xl bg-surface-secondary border border-border">
+                  <div className="w-12 h-12 rounded-full bg-accent/15 text-accent font-bold text-lg flex items-center justify-center border border-accent/30 shrink-0">
+                    {userName.charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-base font-bold text-text-primary">{userName}</h3>
+                      {isDemoUser && (
+                        <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded-md bg-warning/20 text-warning border border-warning/30">
+                          Demo Account
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-text-secondary font-medium">{userEmail}</p>
+                    <p className="text-[10px] font-semibold text-text-muted mt-1">Enterprise Subscription • Supabase Auth Verified</p>
+                  </div>
+                </div>
 
-                    <button 
-                      onClick={() => setTheme('dark')}
-                      className={`flex flex-col items-center justify-center p-6 rounded border transition-all ${theme === 'dark' ? 'border-text-primary ring-1 ring-text-primary bg-surface-secondary' : 'border-border bg-surface hover:bg-surface-secondary'}`}
-                    >
-                      <Moon className={`w-8 h-8 mb-4 ${theme === 'dark' ? 'text-text-primary' : 'text-text-secondary'}`} />
-                      <span className={`text-xs font-bold ${theme === 'dark' ? 'text-text-primary' : 'text-text-secondary'}`}>Dark Mode</span>
-                    </button>
+                <div className="space-y-4 pt-4 border-t border-border">
+                  <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider">Security & Credentials</h3>
 
-                    <button 
-                      onClick={() => setTheme('system')}
-                      className={`flex flex-col items-center justify-center p-6 rounded border transition-all ${theme === 'system' ? 'border-text-primary ring-1 ring-text-primary bg-surface-secondary' : 'border-border bg-surface hover:bg-surface-secondary'}`}
+                  <div className="flex items-center justify-between p-4 rounded-xl border border-border bg-surface-secondary">
+                    <div className="flex items-center gap-3">
+                      <Key className="w-4 h-4 text-text-secondary" />
+                      <div>
+                        <p className="text-xs font-bold text-text-primary">Password Reset</p>
+                        <p className="text-[11px] text-text-secondary">Send password reset instructions link to your email</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={handlePasswordReset}
+                      className="btn-secondary text-xs py-2 px-4 flex items-center gap-2"
                     >
-                      <Monitor className={`w-8 h-8 mb-4 ${theme === 'system' ? 'text-text-primary' : 'text-text-secondary'}`} />
-                      <span className={`text-xs font-bold ${theme === 'system' ? 'text-text-primary' : 'text-text-secondary'}`}>System</span>
+                      {resetSent ? (
+                        <>
+                          <CheckCircle2 className="w-3.5 h-3.5 text-success" />
+                          <span>Link Sent</span>
+                        </>
+                      ) : (
+                        <span>Send Reset Link</span>
+                      )}
                     </button>
                   </div>
-                  <p className="text-[11px] font-medium text-text-secondary mt-6">System mode will automatically switch between Light and Dark themes based on your OS preference.</p>
                 </div>
               </div>
             </section>
@@ -80,117 +113,79 @@ export default function Settings() {
 
           {/* Observation Settings */}
           {activeTab === 'Observation' && (
-            <section className="solid-card p-8">
-              <div className="flex items-center gap-3 mb-8">
+            <section className="solid-card p-6 sm:p-8 rounded-xl border border-border bg-surface">
+              <div className="flex items-center gap-3 mb-6">
                 <Eye className="w-5 h-5 text-text-primary" />
                 <h2 className="text-xl font-bold text-text-primary">Observation Settings</h2>
               </div>
               
-              <div className="space-y-8">
-                <div className="flex items-center justify-between">
+              <div className="space-y-6">
+                <div className="flex items-center justify-between p-4 rounded-xl border border-border bg-surface-secondary">
                   <div>
-                    <h3 className="text-xs font-bold text-text-primary uppercase tracking-widest mb-2">Global Observation Status</h3>
-                    <p className="text-sm text-text-secondary max-w-sm">When active, TRACE securely observes and logs your approved desktop activities to find automation opportunities.</p>
+                    <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider mb-1">Global Desktop Telemetry</h3>
+                    <p className="text-xs text-text-secondary max-w-sm">When active, TRACE captures desktop interaction metadata to discover workflow friction.</p>
                   </div>
                   <button 
                     onClick={toggleObservation} 
                     disabled={isLoading}
-                    className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors focus:outline-none ${isActive ? 'bg-success' : 'bg-text-muted'}`}
+                    className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors focus:outline-none cursor-pointer ${isActive ? 'bg-success' : 'bg-text-muted'}`}
                   >
                     <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${isActive ? 'translate-x-7' : 'translate-x-1'}`} />
                   </button>
-                </div>
-
-                <div className="pt-8 border-t border-border">
-                  <h3 className="text-xs font-bold text-text-muted uppercase tracking-widest mb-6">Recording Preferences</h3>
-                  <div className="space-y-4">
-                    {['Capture UI screenshots during observation', 'Log keystrokes (Filtered for privacy)', 'Track application focus time'].map((pref, i) => (
-                      <label key={i} className="flex items-center gap-4 cursor-pointer">
-                        <input type="checkbox" defaultChecked={i === 0 || i === 2} className="w-4 h-4 rounded bg-background border-border text-text-primary focus:ring-text-primary/50" />
-                        <span className="text-sm font-bold text-text-primary">{pref}</span>
-                      </label>
-                    ))}
-                  </div>
                 </div>
               </div>
             </section>
           )}
 
-          {/* Privacy */}
+          {/* Privacy Settings */}
           {activeTab === 'Privacy' && (
-            <section className="solid-card p-8">
-              <div className="flex items-center gap-3 mb-8">
+            <section className="solid-card p-6 sm:p-8 rounded-xl border border-border bg-surface">
+              <div className="flex items-center gap-3 mb-4">
                 <Shield className="w-5 h-5 text-text-primary" />
-                <h2 className="text-xl font-bold text-text-primary">Privacy & Security</h2>
+                <h2 className="text-xl font-bold text-text-primary">Privacy & Data Governance</h2>
               </div>
-              
-              <div className="space-y-8">
-                <div>
-                  <h3 className="text-xs font-bold text-text-muted uppercase tracking-widest mb-4">Approved Applications</h3>
-                  <p className="text-sm text-text-secondary mb-6">TRACE will ONLY observe activity within these checked applications.</p>
-                  <div className="grid grid-cols-2 gap-4">
-                    {['Google Chrome', 'Microsoft Excel', 'Slack', 'Terminal', 'Visual Studio Code', 'Figma'].map((app, i) => (
-                      <label key={i} className="flex items-center gap-4 cursor-pointer p-4 rounded bg-surface-secondary border border-border transition-colors">
-                        <input type="checkbox" defaultChecked={i < 3} className="w-4 h-4 rounded bg-background border-border text-text-primary" />
-                        <span className="text-sm font-bold text-text-primary">{app}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="pt-8 border-t border-border flex items-center justify-between">
-                  <div>
-                    <h3 className="text-xs font-bold text-text-primary uppercase tracking-widest mb-2">Sensitive Data Redaction</h3>
-                    <p className="text-sm text-text-secondary">Automatically blur passwords, credit cards, and PII from recordings.</p>
-                  </div>
-                  <button className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors bg-success focus:outline-none`}>
-                    <span className={`inline-block h-6 w-6 transform rounded-full bg-white translate-x-7 transition-transform`} />
-                  </button>
-                </div>
-              </div>
+              <p className="text-xs text-text-secondary leading-relaxed">
+                TRACE respects employee privacy. Telemetry captures non-sensitive UI interaction metrics (clicks, active window titles, keystroke types). Sensitive inputs like password fields are sanitized locally before reaching Supabase.
+              </p>
             </section>
           )}
 
           {/* Automation Safety */}
           {activeTab === 'Automation Safety' && (
-            <section className="solid-card p-8">
-              <div className="flex items-center gap-3 mb-8">
+            <section className="solid-card p-6 sm:p-8 rounded-xl border border-border bg-surface">
+              <div className="flex items-center gap-3 mb-4">
                 <Lock className="w-5 h-5 text-text-primary" />
-                <h2 className="text-xl font-bold text-text-primary">Automation Safety</h2>
+                <h2 className="text-xl font-bold text-text-primary">Automation Safety & Approval Gates</h2>
               </div>
-              
-              <div className="space-y-4">
-                 <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-xs font-bold text-text-primary uppercase tracking-widest mb-2">Require Human Approval</h3>
-                    <p className="text-sm text-text-secondary">Pause automations before executing sensitive actions (e.g. sending emails, deleting files).</p>
-                  </div>
-                  <button className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors bg-success focus:outline-none`}>
-                    <span className={`inline-block h-6 w-6 transform rounded-full bg-white translate-x-7 transition-transform`} />
-                  </button>
-                </div>
-              </div>
+              <p className="text-xs text-text-secondary leading-relaxed">
+                All generated automation plans with high-risk actions (e.g. sending emails or submitting financial reports) require mandatory Human-in-the-Loop approval before execution.
+              </p>
             </section>
           )}
 
-          {/* AI Settings */}
+          {/* AI & Logic */}
           {activeTab === 'AI & Logic' && (
-            <section className="solid-card p-8">
-              <div className="flex items-center gap-3 mb-8">
-                <TraceLogo className="text-3xl" />
-                <h2 className="text-xl font-bold text-text-primary">AI Provider Settings</h2>
+            <section className="solid-card p-6 sm:p-8 rounded-xl border border-border bg-surface">
+              <div className="flex items-center gap-3 mb-4">
+                <Bot className="w-5 h-5 text-text-primary" />
+                <h2 className="text-xl font-bold text-text-primary">AI & Intent Intelligence</h2>
               </div>
-              
-              <div className="space-y-4">
-                 <div>
-                   <label className="block text-xs font-bold text-text-muted uppercase tracking-widest mb-4">Primary AI Engine</label>
-                   <select className="w-full bg-surface border border-border rounded px-4 py-3 text-sm font-bold text-text-primary focus:outline-none focus:border-text-primary/50">
-                     <option>Gemini 1.5 Pro (Recommended)</option>
-                     <option>GPT-4o</option>
-                     <option>Claude 3.5 Sonnet</option>
-                   </select>
-                 </div>
+              <p className="text-xs text-text-secondary leading-relaxed">
+                Powered by Google Gemini AI for natural language intent resolution and deterministic heuristic fallback when offline.
+              </p>
+            </section>
+          )}
+
+          {/* Notifications */}
+          {activeTab === 'Notifications' && (
+            <section className="solid-card p-6 sm:p-8 rounded-xl border border-border bg-surface">
+              <div className="flex items-center gap-3 mb-4">
+                <Bell className="w-5 h-5 text-text-primary" />
+                <h2 className="text-xl font-bold text-text-primary">Notification Preferences</h2>
               </div>
+              <p className="text-xs text-text-secondary leading-relaxed">
+                Receive real-time Socket.IO browser notifications when new pattern opportunities or execution approval requests arise.
+              </p>
             </section>
           )}
 

@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Bot, Check, Settings, PlayCircle, ShieldCheck, Save, ArrowLeft } from 'lucide-react';
+import { Wrench, PlayCircle, ShieldCheck, Save, ArrowLeft, CheckCircle2, Sparkles } from 'lucide-react';
+import PageHeader from '../components/ui/PageHeader';
+import StatusBadge from '../components/ui/StatusBadge';
+import EmptyState from '../components/ui/EmptyState';
 import { API_URL } from '../config';
 
 interface AutomationStep {
@@ -55,52 +58,80 @@ export default function Builder() {
       if (data.success) {
         setPlan(prev => prev ? { ...prev, status: 'Approved' } : null);
         alert('Automation approved and saved successfully!');
-        navigate('/dashboard');
+        navigate('/automations');
       }
-    } catch (e) {
+    } catch (err) {
+      console.error('Failed to approve automation', err);
       alert('Failed to approve automation.');
     } finally {
       setSaving(false);
     }
   };
 
-  if (loading) return <div className="p-8 text-center text-text-muted">Loading automation definition...</div>;
-  if (!plan) return <div className="p-8 text-center text-error">Automation plan not found.</div>;
+  if (loading && !plan) {
+    return (
+      <div className="w-full max-w-4xl mx-auto py-16 text-center">
+        <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+        <p className="text-xs text-text-secondary font-medium">Loading automation plan definition...</p>
+      </div>
+    );
+  }
+
+  if (!plan) {
+    return (
+      <div className="w-full max-w-4xl mx-auto py-12">
+        <EmptyState
+          icon={Wrench}
+          title="Automation blueprint not found"
+          description="Select a workflow pattern from the Workflows tab to generate a new blueprint."
+          action={
+            <button onClick={() => navigate('/workflows')} className="btn-primary text-xs py-2 px-4">
+              View Workflows
+            </button>
+          }
+        />
+      </div>
+    );
+  }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500">
-      <div className="flex items-center gap-4">
-        <button onClick={() => navigate(-1)} className="p-2 hover:bg-surface-secondary rounded-full text-text-secondary transition-colors">
-          <ArrowLeft className="w-5 h-5" />
-        </button>
-        <div>
-          <h1 className="text-3xl font-bold text-text-primary">Automation Builder</h1>
-          <p className="mt-1 text-text-secondary">Review and approve the executable definition for <span className="font-semibold text-text-primary">{plan.name}</span>.</p>
-        </div>
-      </div>
+    <div className="max-w-4xl mx-auto space-y-8 pb-12">
+      <PageHeader
+        title="Automation Plan Builder"
+        description={`Review and approve the automation plan for ${plan.name}.`}
+        icon={Wrench}
+        badgeText={plan.status}
+        badgeType={plan.status === 'Approved' ? 'success' : 'warning'}
+        actions={
+          <button 
+            onClick={() => navigate(-1)} 
+            className="px-3.5 py-2 rounded-md bg-surface border border-border hover:bg-surface-secondary text-text-primary text-xs font-medium transition-colors flex items-center gap-1.5 shadow-sm"
+          >
+            <ArrowLeft className="w-4 h-4" /> Back
+          </button>
+        }
+      />
 
-      <div className="bg-surface rounded-xl shadow-lg border border-border overflow-hidden">
-        <div className="p-6 border-b border-border bg-surface-secondary flex items-center justify-between">
+      <div className="solid-card rounded-lg overflow-hidden border border-border bg-surface">
+        <div className="p-6 border-b border-border bg-surface-secondary/50 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-accent/20 rounded-lg flex items-center justify-center text-accent">
-              <Settings className="w-5 h-5" />
+            <div className="w-10 h-10 bg-accent/15 border border-accent/30 rounded-md flex items-center justify-center text-accent">
+              <Sparkles className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="font-bold text-text-primary">Automation Blueprint</h2>
-              <p className="text-sm text-text-muted">Trigger: {plan.trigger.type.toUpperCase()}</p>
+              <h2 className="font-bold text-text-primary text-base">{plan.name}</h2>
+              <p className="text-xs text-text-secondary">Trigger: <span className="font-mono font-bold text-text-primary">{plan.trigger.type.toUpperCase()}</span></p>
             </div>
           </div>
-          <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${plan.status === 'Approved' ? 'bg-success/20 text-success border-success/30' : 'bg-warning/20 text-warning border-warning/30'}`}>
-            Status: {plan.status}
-          </span>
+          <StatusBadge status={plan.status} size="md" />
         </div>
 
-        <div className="p-8 bg-background">
-          <div className="relative border-l-2 border-border ml-4 space-y-8 pb-4">
+        <div className="p-6 sm:p-8 bg-background">
+          <div className="relative border-l-2 border-border ml-4 space-y-6 pb-4">
             
             <div className="relative -ml-[13px] flex items-center gap-4">
               <div className="w-6 h-6 rounded-full bg-border border-2 border-surface" />
-              <span className="font-medium text-text-muted text-sm">Start Workflow Trigger</span>
+              <span className="font-semibold text-text-muted text-xs uppercase tracking-wider">Start Workflow Trigger</span>
             </div>
 
             {plan.steps.map((step, idx) => {
@@ -108,29 +139,29 @@ export default function Builder() {
               const actionName = step.action || step.type || 'Unknown';
               
               let details = '';
-              if (step.url) details = `URL: ${step.url}`;
+              if (step.url) details = `Navigate to URL: ${step.url}`;
               else if (step.value && step.target) details = `Type "${step.value}" into "${step.target}"`;
-              else if (step.target) details = `Target: ${step.target}`;
+              else if (step.target) details = `Target Element: ${step.target}`;
               else if (step.key) details = `Press Key: ${step.key}`;
 
               return (
                 <div key={idx} className="relative -ml-[21px] flex items-start gap-4 group">
-                  <div className={`w-10 h-10 rounded-full border-4 border-surface flex items-center justify-center shrink-0 z-10 transition-transform group-hover:scale-110 ${isManual ? 'bg-warning text-background' : 'bg-info text-background'}`}>
+                  <div className={`w-10 h-10 rounded-full border-4 border-surface flex items-center justify-center shrink-0 z-10 ${isManual ? 'bg-warning text-background' : 'bg-accent text-white'} shadow-sm`}>
                     {isManual ? <ShieldCheck className="w-4 h-4" /> : <PlayCircle className="w-4 h-4" />}
                   </div>
                   
-                  <div className={`flex-1 p-4 rounded-xl border ${isManual ? 'bg-warning/10 border-warning/20' : 'bg-info/10 border-info/20'} shadow-sm`}>
+                  <div className={`flex-1 p-4 rounded-md border ${isManual ? 'bg-warning/10 border-warning/20' : 'bg-surface border-border'} shadow-sm`}>
                     <div className="flex justify-between items-start">
                       <div>
-                        <h3 className={`font-bold text-sm uppercase tracking-wider ${isManual ? 'text-warning' : 'text-info'}`}>
-                          {isManual ? 'Human Approval Required' : 'Automated Action'}
-                        </h3>
-                        <p className="font-medium text-text-primary mt-1 capitalize">
+                        <span className={`text-[10px] font-bold uppercase tracking-wider ${isManual ? 'text-warning' : 'text-accent'}`}>
+                          {isManual ? 'Human Approval Checkpoint' : 'Playwright Step'}
+                        </span>
+                        <h4 className="font-bold text-text-primary text-sm mt-0.5 capitalize">
                           {actionName.replace(/_/g, ' ')}
-                        </p>
-                        {details && <p className="text-sm text-text-secondary mt-1">{details}</p>}
+                        </h4>
+                        {details && <p className="text-xs text-text-secondary mt-1 font-mono">{details}</p>}
                       </div>
-                      <span className="text-xs font-mono text-text-secondary bg-surface-secondary px-2 py-1 rounded border border-border">
+                      <span className="text-[10px] font-mono font-semibold text-text-muted bg-surface-secondary px-2 py-1 rounded border border-border">
                         step_{idx + 1}
                       </span>
                     </div>
@@ -141,21 +172,26 @@ export default function Builder() {
 
             <div className="relative -ml-[13px] flex items-center gap-4 pt-4">
               <div className="w-6 h-6 rounded-full bg-border border-2 border-surface" />
-              <span className="font-medium text-text-muted text-sm">End Workflow</span>
+              <span className="font-semibold text-text-muted text-xs uppercase tracking-wider">End Workflow Execution</span>
             </div>
             
           </div>
         </div>
 
         <div className="p-6 bg-surface border-t border-border flex justify-end gap-4">
-          {plan.status !== 'Approved' && (
+          {plan.status !== 'Approved' ? (
             <button 
               onClick={handleApprove}
               disabled={saving}
-              className="px-6 py-2.5 bg-accent hover:bg-accent-hover disabled:opacity-50 text-white rounded-lg font-medium transition-colors flex items-center gap-2 shadow-sm"
+              className="btn-primary text-xs py-2.5 px-6 flex items-center gap-2"
             >
-              {saving ? 'Saving...' : 'Approve & Save Automation'} <Save className="w-4 h-4" />
+              {saving ? 'Approving Blueprint...' : 'Approve & Save Automation'} <Save className="w-4 h-4" />
             </button>
+          ) : (
+            <div className="flex items-center gap-2 text-xs font-bold text-success">
+              <CheckCircle2 className="w-4 h-4" />
+              <span>Blueprint Approved & Ready for Execution</span>
+            </div>
           )}
         </div>
       </div>

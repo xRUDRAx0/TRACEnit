@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Zap, Sparkles, CheckCircle2, ArrowRight } from 'lucide-react';
+import { X, Sparkles, CheckCircle2, ArrowRight } from 'lucide-react';
 
 interface OptimizeModalProps {
   insight: any;
@@ -21,15 +21,11 @@ export default function OptimizeModal({ insight, onClose }: OptimizeModalProps) 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="w-full max-w-2xl bg-background border border-border rounded-2xl shadow-2xl overflow-hidden flex flex-col relative">
-        
-        {/* Glow effect */}
-        <div className="absolute top-0 right-0 w-64 h-64 bg-info/10 blur-3xl rounded-full -mr-20 -mt-20 pointer-events-none"></div>
-
+      <div className="w-full max-w-2xl bg-background border border-border rounded-lg shadow-lg overflow-hidden flex flex-col relative">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-border bg-surface-secondary/30 relative z-10">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-info/20 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-md bg-info/20 flex items-center justify-center">
               <Sparkles className="w-5 h-5 text-info" />
             </div>
             <div>
@@ -58,7 +54,7 @@ export default function OptimizeModal({ insight, onClose }: OptimizeModalProps) 
           ) : (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
               
-              <div className="bg-info/10 border border-info/30 rounded-xl p-5 mb-6">
+              <div className="bg-info/10 border border-info/30 rounded-md p-5 mb-6">
                  <h3 className="text-sm font-bold text-info mb-2">Target Issue: {insight.title}</h3>
                  <p className="text-sm text-text-primary">{insight.observation}</p>
               </div>
@@ -69,14 +65,14 @@ export default function OptimizeModal({ insight, onClose }: OptimizeModalProps) 
                 {/* Dynamic tips based on category */}
                 {insight.category === 'Context Switching' ? (
                   <>
-                    <div className="flex gap-4 items-start bg-surface-secondary p-4 rounded-xl border border-border">
+                    <div className="flex gap-4 items-start bg-surface-secondary p-4 rounded-md border border-border">
                        <CheckCircle2 className="w-5 h-5 text-success shrink-0 mt-0.5" />
                        <div>
                          <h4 className="text-sm font-bold text-text-primary">Use Split-Screen Layouts</h4>
                          <p className="text-xs text-text-secondary mt-1">Pin your primary applications side-by-side (Win + Left/Right Arrow). This completely eliminates the need to toggle windows, saving approximately 3-5 seconds per switch.</p>
                        </div>
                     </div>
-                    <div className="flex gap-4 items-start bg-surface-secondary p-4 rounded-xl border border-border">
+                    <div className="flex gap-4 items-start bg-surface-secondary p-4 rounded-md border border-border">
                        <CheckCircle2 className="w-5 h-5 text-success shrink-0 mt-0.5" />
                        <div>
                          <h4 className="text-sm font-bold text-text-primary">Keyboard Navigation (Alt + Tab)</h4>
@@ -86,14 +82,14 @@ export default function OptimizeModal({ insight, onClose }: OptimizeModalProps) 
                   </>
                 ) : insight.category === 'Rework' ? (
                   <>
-                    <div className="flex gap-4 items-start bg-surface-secondary p-4 rounded-xl border border-border">
+                    <div className="flex gap-4 items-start bg-surface-secondary p-4 rounded-md border border-border">
                        <CheckCircle2 className="w-5 h-5 text-success shrink-0 mt-0.5" />
                        <div>
                          <h4 className="text-sm font-bold text-text-primary">Use Keyboard Shortcuts</h4>
                          <p className="text-xs text-text-secondary mt-1">Repeated clicks often indicate inefficient navigation. Identify the keyboard shortcuts for the actions you are performing to bypass the UI entirely.</p>
                        </div>
                     </div>
-                    <div className="flex gap-4 items-start bg-surface-secondary p-4 rounded-xl border border-border">
+                    <div className="flex gap-4 items-start bg-surface-secondary p-4 rounded-md border border-border">
                        <CheckCircle2 className="w-5 h-5 text-success shrink-0 mt-0.5" />
                        <div>
                          <h4 className="text-sm font-bold text-text-primary">Create a Custom Macro</h4>
@@ -102,7 +98,7 @@ export default function OptimizeModal({ insight, onClose }: OptimizeModalProps) 
                     </div>
                   </>
                 ) : (
-                  <div className="flex gap-4 items-start bg-surface-secondary p-4 rounded-xl border border-border">
+                  <div className="flex gap-4 items-start bg-surface-secondary p-4 rounded-md border border-border">
                      <CheckCircle2 className="w-5 h-5 text-success shrink-0 mt-0.5" />
                      <div>
                        <h4 className="text-sm font-bold text-text-primary">Standardize the Workflow</h4>
@@ -113,7 +109,7 @@ export default function OptimizeModal({ insight, onClose }: OptimizeModalProps) 
               </div>
 
               <div className="pt-6 flex justify-end">
-                 <button onClick={onClose} className="px-6 py-2.5 bg-info hover:bg-info/80 text-white text-sm font-semibold rounded-lg transition-colors flex items-center gap-2">
+                 <button onClick={onClose} className="px-6 py-2.5 bg-info hover:bg-info/80 text-white text-sm font-semibold rounded-md transition-colors flex items-center gap-2">
                    Apply Recommendations <ArrowRight className="w-4 h-4" />
                  </button>
               </div>

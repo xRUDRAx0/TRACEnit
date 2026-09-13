@@ -1,13 +1,16 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Activity, Layers, Clock, Zap, FileText, Database, ArrowRight, Bot } from 'lucide-react';
+import { Activity, Layers, Clock, Zap, FileText, Database, Bot, ArrowUpRight, Sparkles, BarChart3 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { useObservation } from '../context/ObservationContext';
-import TraceLogo from '../components/TraceLogo';
+import { useObservation } from '../hooks/useObservation';
+import { useAuth } from '../hooks/useAuth';
+import PageHeader from '../components/ui/PageHeader';
+import EmptyState from '../components/ui/EmptyState';
 import { API_URL } from '../config';
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const { user, isDemoUser } = useAuth();
   const [data, setData] = useState<any>(null);
   const [events, setEvents] = useState<any[]>([]);
   const [runs, setRuns] = useState<any[]>([]);
@@ -16,6 +19,8 @@ export default function Dashboard() {
   const [timeFilter, setTimeFilter] = useState('This Week');
   const [isGenerating, setIsGenerating] = useState(false);
   const { liveEvents, isActive } = useObservation();
+
+  const userName = user?.user_metadata?.full_name || (user?.email ? user.email.split('@')[0] : (isDemoUser ? 'Demo Operator' : 'Operator'));
 
   useEffect(() => {
     Promise.all([
@@ -44,7 +49,7 @@ export default function Dashboard() {
 
   const {
     activitiesToday, activitiesYesterday,
-    workflowsDetected, workflowsYesterday,
+    workflowsDetected,
     timeSavedMs, timeSavedPreviousMs,
     runsCount, runsPreviousCount,
     chartData, recentActivity
@@ -96,7 +101,6 @@ export default function Dashboard() {
     };
 
     const getRunTimeSaved = (run: any) => {
-      // Note: execution runs use startedAt/completedAt but some legacy runs might use startTime/endTime. Handle both.
       const runStatus = run.status?.toLowerCase();
       const endTs = run.completedAt || run.endTime;
       const startTs = run.startedAt || run.startTime;
@@ -129,8 +133,8 @@ export default function Dashboard() {
     let cData = days.map(day => ({ name: day, time: 0 }));
     
     periodRuns.forEach(r => {
-      if (r.status === 'completed' && r.endTime) {
-        const d = new Date(r.endTime);
+      if (r.status === 'completed' && (r.endTime || r.completedAt)) {
+        const d = new Date(r.endTime || r.completedAt);
         const savedMins = getRunTimeSaved(r) / 60000;
         cData[d.getDay()].time += savedMins;
       }
@@ -153,11 +157,31 @@ export default function Dashboard() {
   }, [allEvents, runs, automations, data, timeFilter]);
 
   if (loading && !data) {
-    return <div className="p-8 text-center text-text-secondary text-sm">Loading Dashboard...</div>;
+    return (
+      <div className="w-full max-w-[1400px] mx-auto py-16 text-center">
+        <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+        <p className="text-xs text-text-secondary font-medium">Loading Operations Command Center...</p>
+      </div>
+    );
   }
 
   if (!data) {
-    return <div className="p-8 text-center text-error text-sm">Unable to load dashboard data.<br/><button onClick={() => window.location.reload()} className="mt-2 px-4 py-1 border border-border rounded text-text-primary hover:bg-surface-secondary">Retry</button></div>;
+    return (
+      <div className="w-full max-w-[1400px] mx-auto py-12">
+        <EmptyState
+          title="Unable to load dashboard data"
+          description="Could not establish connection with the TRACE backend service."
+          action={
+            <button 
+              onClick={() => window.location.reload()} 
+              className="btn-primary text-xs py-2 px-4"
+            >
+              Retry Connection
+            </button>
+          }
+        />
+      </div>
+    );
   }
 
   const formatMs = (ms: number) => {
@@ -206,125 +230,137 @@ export default function Dashboard() {
   const displayFormattedTime = formatMs(timeSavedMs);
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500 pb-12 pt-4 max-w-[1400px] w-full mx-auto">
+    <div className="space-y-8 pb-12 max-w-[1400px] w-full mx-auto">
       
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-black text-text-primary tracking-tight mb-2">Good morning, Rudra.</h1>
-          <p className="text-sm text-text-secondary flex items-center gap-2">
-            TRACE learns how you work and helps automate repetitive work. 
-            {isActive ? (
-              <span className="text-success flex items-center gap-1 font-bold text-xs bg-success/10 px-2 py-0.5 rounded border border-success/20">
-                <span className="w-2 h-2 rounded-full bg-success animate-pulse"></span> Observation Active
-              </span>
-            ) : (
-              <span className="text-text-muted flex items-center gap-1 font-bold text-xs bg-surface-secondary px-2 py-0.5 rounded border border-border">
-                <span className="w-2 h-2 rounded-full bg-text-muted"></span> Observation Not Started
-              </span>
-            )}
-          </p>
-        </div>
-      </div>
+      {/* Page Header */}
+      <PageHeader
+        title={`Welcome back, ${userName}`}
+        description="Good morning — your workspace is ready."
+        icon={BarChart3}
+        badgeText={isActive ? "Observation Active" : "Observer Idle"}
+        badgeType={isActive ? "success" : "warning"}
+        actions={
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => navigate('/recorder')}
+              className="px-3.5 py-2 rounded-md bg-surface border border-border hover:bg-surface-secondary text-text-primary font-medium text-xs flex items-center gap-1.5 transition-colors shadow-sm"
+            >
+              <Activity className="w-3.5 h-3.5 text-accent" />
+              <span>Observer Controller</span>
+            </button>
+            <button
+              onClick={() => navigate('/workflows')}
+              className="btn-primary flex items-center gap-1.5 text-xs py-2 px-3.5"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>View Opportunities</span>
+            </button>
+          </div>
+        }
+      />
 
-      {/* Top Stat Cards */}
+      {/* Top Operations Metrics Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { title: 'Activities Today', value: activitiesToday, trend: getTrend(activitiesToday, activitiesYesterday), trendColor: activitiesToday >= activitiesYesterday ? 'text-success' : 'text-error', icon: Activity, onClick: () => navigate('/activity') },
-          { title: 'Workflows Detected', value: workflowsDetected, trend: 'No previous data', trendColor: 'text-text-muted', icon: Layers, onClick: () => navigate('/workflows') },
-          { title: `Time Saved (${timeFilter})`, value: displayFormattedTime, trend: getTrend(timeSavedMs, timeSavedPreviousMs), trendColor: timeSavedMs >= timeSavedPreviousMs ? 'text-success' : 'text-error', icon: Clock, onClick: () => navigate('/insights') },
-          { title: 'Automations Run', value: runsCount, trend: getTrend(runsCount, runsPreviousCount), trendColor: runsCount >= runsPreviousCount ? 'text-success' : 'text-error', icon: Zap, onClick: () => navigate('/executions') },
+          { title: 'Events Today', value: activitiesToday, trend: getTrend(activitiesToday, activitiesYesterday), trendColor: activitiesToday >= activitiesYesterday ? 'text-success' : 'text-text-muted', icon: Activity, onClick: () => navigate('/activity') },
+          { title: 'Workflows Detected', value: workflowsDetected, trend: 'Discovered by AI', trendColor: 'text-text-muted', icon: Layers, onClick: () => navigate('/workflows') },
+          { title: `Time Saved (${timeFilter})`, value: displayFormattedTime, trend: getTrend(timeSavedMs, timeSavedPreviousMs), trendColor: timeSavedMs >= timeSavedPreviousMs ? 'text-success' : 'text-text-muted', icon: Clock, onClick: () => navigate('/insights') },
+          { title: 'Automations Run', value: runsCount, trend: getTrend(runsCount, runsPreviousCount), trendColor: runsCount >= runsPreviousCount ? 'text-success' : 'text-text-muted', icon: Zap, onClick: () => navigate('/executions') },
         ].map((stat, i) => (
-          <div key={i} onClick={stat.onClick} className="solid-card group p-6 flex flex-col justify-between cursor-pointer">
-            <div className="flex items-center gap-3 mb-4 text-text-primary">
-              <div className="w-8 h-8 rounded bg-surface-secondary border border-border flex items-center justify-center group-hover:border-accent/50 transition-colors">
-                <stat.icon className="w-4 h-4 group-hover:text-accent transition-colors" />
-              </div>
-              <span className="text-[10px] font-bold uppercase tracking-widest text-text-primary">{stat.title}</span>
+          <div key={i} onClick={stat.onClick} className="solid-card group p-5 flex flex-col justify-between cursor-pointer hover:border-border-strong transition-all rounded-lg bg-surface">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[10.5px] font-medium uppercase tracking-wider text-text-muted">{stat.title}</span>
+              <stat.icon className="w-4 h-4 text-text-muted group-hover:text-text-primary transition-colors" />
             </div>
             <div>
-              <h3 className="text-3xl font-black text-text-primary tracking-tight mb-1">{stat.value}</h3>
-              <p className={`text-[10px] font-bold ${stat.trendColor}`}>{stat.trend}</p>
+              <h3 className="text-2xl font-bold text-text-primary tracking-tight mb-1">{stat.value}</h3>
+              <p className={`text-[11px] font-medium ${stat.trendColor}`}>{stat.trend}</p>
             </div>
           </div>
         ))}
       </div>
 
+      {/* Main Operations Dashboard Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        {/* Column 1: Recent Activity */}
-        <div className="solid-card p-6 flex flex-col h-[400px]">
+        {/* Column 1: Live Activity Telemetry */}
+        <div className="solid-card p-6 flex flex-col h-[420px] rounded-lg bg-surface border border-border">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-[10px] font-bold text-text-primary uppercase tracking-widest">Recent Activity</h2>
-            <button onClick={() => navigate('/activity')} className="text-[10px] font-bold text-text-secondary hover:text-text-primary">View all</button>
+            <h2 className="text-xs font-semibold text-text-primary uppercase tracking-wider flex items-center gap-2">
+              <Activity className="w-3.5 h-3.5 text-text-secondary" /> Telemetry Stream
+            </h2>
+            <button onClick={() => navigate('/activity')} className="text-xs font-medium text-text-secondary hover:text-text-primary flex items-center gap-1 transition-colors">
+              <span>View all</span>
+              <ArrowUpRight className="w-3 h-3" />
+            </button>
           </div>
           
-          <div className="flex-1 overflow-y-auto pr-2">
-            <div className="space-y-0 relative">
-              {recentActivity.length > 0 ? recentActivity.map((act: any, i: number) => {
-                let icon = FileText;
-                if (act.app === 'Spreadsheet' || act.application === 'Excel') icon = Database;
-                else if (act.app === 'Gmail') icon = Zap;
+          <div className="flex-1 overflow-y-auto pr-2 space-y-2.5">
+            {recentActivity.length > 0 ? recentActivity.map((act: any, i: number) => {
+              let ActIcon = FileText;
+              if (act.app === 'Spreadsheet' || act.application === 'Excel') ActIcon = Database;
+              else if (act.app === 'Gmail') ActIcon = Zap;
 
-                return (
-                  <div key={i} className="flex gap-4 relative pb-6">
-                    {/* Timeline line */}
-                    {i !== recentActivity.length - 1 && (
-                      <div className="absolute top-5 left-[23px] bottom-0 w-px bg-border"></div>
-                    )}
-                    
-                    <div className="text-[10px] font-bold text-text-secondary mt-1 w-10 text-right shrink-0">
-                      {formatTime(act.timestamp)}
-                    </div>
-                    
-                    <div className="w-6 h-6 rounded-full bg-surface border border-border flex items-center justify-center relative z-10 shrink-0 mt-0.5">
-                      <div className="w-1.5 h-1.5 rounded-full bg-warning"></div>
-                    </div>
-                    
-                    <div className="flex-1 bg-surface-secondary border border-border rounded p-3 text-xs shadow-sm">
-                      <div className="font-bold text-text-primary mb-1">{act.action === 'click' ? `Clicked in ${act.application || 'Chrome'}` : act.action === 'type' ? `Typed in ${act.application || 'Chrome'}` : `Action in ${act.application || 'Chrome'}`}</div>
-                      <div className="text-text-secondary truncate">{act.metadata?.elementName || act.metadata?.typedText || act.action}</div>
-                    </div>
+              return (
+                <div key={i} className="p-3 rounded-md bg-surface-secondary/40 border border-border/80 flex items-start gap-3 text-xs hover:border-border transition-colors">
+                  <div className="w-6 h-6 rounded bg-surface border border-border flex items-center justify-center shrink-0 mt-0.5">
+                    <ActIcon className="w-3 h-3 text-text-secondary" />
                   </div>
-                );
-              }) : (
-                <div className="flex-1 flex flex-col items-center justify-center h-full pt-12">
-                  <Activity className="w-8 h-8 text-border mb-3" />
-                  <div className="text-xs text-text-muted text-center font-bold">No recent activity</div>
-                  <div className="text-[10px] text-text-muted text-center mt-1">Start observation to record events</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-0.5">
+                      <span className="font-semibold text-text-primary truncate">
+                        {act.action === 'click' ? `Clicked in ${act.application || 'Browser'}` : act.action === 'type' ? `Typed in ${act.application || 'Browser'}` : `Action in ${act.application || 'Browser'}`}
+                      </span>
+                      <span className="text-[10px] text-text-muted font-medium">{formatTime(act.timestamp)}</span>
+                    </div>
+                    <p className="text-[11px] text-text-secondary truncate font-mono">
+                      {act.metadata?.elementName || act.metadata?.typedText || act.action}
+                    </p>
+                  </div>
                 </div>
-              )}
-            </div>
+              );
+            }) : (
+              <EmptyState
+                icon={Activity}
+                title="No telemetry events yet"
+                description="Start observation to capture browser actions."
+                action={
+                  <button onClick={() => navigate('/recorder')} className="btn-secondary text-xs py-1.5 px-3">
+                    Open Recorder
+                  </button>
+                }
+              />
+            )}
           </div>
         </div>
 
-        {/* Column 2: Trace Opportunity */}
-        <div className="solid-card p-6 flex flex-col h-[400px]">
-          <h2 className="text-[10px] font-bold text-text-primary uppercase tracking-widest mb-6 flex items-center gap-2">
-            <TraceLogo className="text-xs text-text-primary" /> Opportunity
+        {/* Column 2: Top Automation Opportunity */}
+        <div className="solid-card p-6 flex flex-col h-[420px] rounded-lg bg-surface border border-border">
+          <h2 className="text-xs font-semibold text-text-primary uppercase tracking-wider mb-6 flex items-center gap-2">
+            <Sparkles className="w-3.5 h-3.5 text-text-secondary" /> Automation Opportunity
           </h2>
           
           {data.topOpportunity ? (
             <div className="flex-1 flex flex-col">
-              <h3 className="text-lg font-bold text-text-primary mb-1">{data.topOpportunity.name}</h3>
-              <p className="text-[11px] text-text-secondary italic mb-6">"TRACE noticed a repetitive workflow"</p>
+              <h3 className="text-base font-bold text-text-primary mb-1">{data.topOpportunity.name}</h3>
+              <p className="text-xs text-text-secondary mb-6">Identified repetitive multi-step workflow pattern</p>
               
-              <div className="grid grid-cols-2 gap-4 mb-6">
-                <div className="bg-surface-secondary rounded border border-border p-4">
-                  <p className="text-[10px] text-text-muted font-bold uppercase mb-1">Automation Potential</p>
-                  <p className="text-2xl font-black text-success">{data.aiAnalysis?.automationPotential || 85}%</p>
+              <div className="grid grid-cols-2 gap-3 mb-6">
+                <div className="bg-surface-secondary/40 rounded-md border border-border/80 p-3.5">
+                  <p className="text-[10px] text-text-muted font-medium uppercase tracking-wider mb-1">Automation Potential</p>
+                  <p className="text-2xl font-bold text-success">{data.aiAnalysis?.automationPotential || 85}%</p>
                 </div>
-                <div className="bg-surface-secondary rounded border border-border p-4">
-                  <p className="text-[10px] text-text-muted font-bold uppercase mb-1">Repetitions</p>
-                  <p className="text-2xl font-black text-text-primary">{data.topOpportunity.occurrenceCount}</p>
+                <div className="bg-surface-secondary/40 rounded-md border border-border/80 p-3.5">
+                  <p className="text-[10px] text-text-muted font-medium uppercase tracking-wider mb-1">Occurrences</p>
+                  <p className="text-2xl font-bold text-text-primary">{data.topOpportunity.occurrenceCount}</p>
                 </div>
-                <div className="bg-surface-secondary rounded border border-border p-4">
-                  <p className="text-[10px] text-text-muted font-bold uppercase mb-1">Avg. Time</p>
-                  <p className="text-xl font-bold text-text-primary">{Math.max(1, Math.round((data.topOpportunity.averageDurationSeconds || 0)/60))} min</p>
+                <div className="bg-surface-secondary/40 rounded-md border border-border/80 p-3.5">
+                  <p className="text-[10px] text-text-muted font-medium uppercase tracking-wider mb-1">Avg. Duration</p>
+                  <p className="text-lg font-bold text-text-primary">{Math.max(1, Math.round((data.topOpportunity.averageDurationSeconds || 0)/60))} min</p>
                 </div>
-                <div className="bg-surface-secondary rounded border border-border p-4">
-                  <p className="text-[10px] text-text-muted font-bold uppercase mb-1">Potential Saving</p>
-                  <p className="text-xl font-bold text-success">~{Math.max(1, Math.round((data.topOpportunity.averageDurationSeconds || 0)/60))}m/run</p>
+                <div className="bg-surface-secondary/40 rounded-md border border-border/80 p-3.5">
+                  <p className="text-[10px] text-text-muted font-medium uppercase tracking-wider mb-1">Potential Saving</p>
+                  <p className="text-lg font-bold text-success">~{Math.max(1, Math.round((data.topOpportunity.averageDurationSeconds || 0)/60))}m/run</p>
                 </div>
               </div>
 
@@ -332,28 +368,39 @@ export default function Dashboard() {
                 <button 
                   onClick={handleBuildAutomation}
                   disabled={isGenerating}
-                  className="w-full py-3 bg-text-primary text-background text-xs font-bold rounded hover:bg-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="btn-primary w-full py-2.5 text-xs disabled:opacity-50 flex items-center justify-center gap-2"
                 >
-                  {isGenerating ? 'Building...' : 'Build Automation'}
+                  {isGenerating ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-background border-t-transparent rounded-full animate-spin" />
+                      <span>Generating Automation Plan...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Build Automation Plan</span>
+                    </>
+                  )}
                 </button>
               </div>
             </div>
           ) : (
-             <div className="flex-1 flex flex-col items-center justify-center text-xs text-text-muted">
-                <Bot className="w-8 h-8 text-border mb-3" />
-                No major opportunities detected yet.
-             </div>
+            <EmptyState
+              icon={Bot}
+              title="No workflow opportunities yet"
+              description="Record a repetitive task to generate opportunities."
+            />
           )}
         </div>
 
-        {/* Column 3: Time Saved Overview */}
-        <div className="solid-card p-6 flex flex-col h-[400px]">
+        {/* Column 3: Time Saved & Analytics Overview */}
+        <div className="solid-card p-6 flex flex-col h-[420px] rounded-lg bg-surface border border-border">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-[10px] font-bold text-text-primary uppercase tracking-widest">Time Saved Overview</h2>
+            <h2 className="text-xs font-semibold text-text-primary uppercase tracking-wider">Time Saved Chart</h2>
             <select 
               value={timeFilter}
               onChange={(e) => setTimeFilter(e.target.value)}
-              className="bg-surface text-[10px] font-bold text-text-primary border border-border outline-none cursor-pointer rounded px-2 py-1 focus:border-accent transition-colors"
+              className="bg-surface-secondary text-[11px] font-medium text-text-primary border border-border outline-none cursor-pointer rounded-md px-2.5 py-1 focus:border-accent transition-colors"
             >
               <option>Today</option>
               <option>This Week</option>
@@ -362,24 +409,24 @@ export default function Dashboard() {
             </select>
           </div>
           
-          <div className="mb-6">
-             <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest mb-1">Total Time Saved</p>
-             <h3 className="text-3xl font-black text-text-primary tracking-tight mb-1">{displayFormattedTime}</h3>
-             <p className={`text-[10px] font-bold ${timeSavedMs >= timeSavedPreviousMs ? 'text-success' : 'text-error'}`}>{getTrend(timeSavedMs, timeSavedPreviousMs)}</p>
+          <div className="mb-4">
+             <p className="text-[10px] font-medium text-text-muted uppercase tracking-wider mb-0.5">Total Hours Saved</p>
+             <h3 className="text-3xl font-bold text-text-primary tracking-tight mb-1">{displayFormattedTime}</h3>
+             <p className={`text-[11px] font-medium ${timeSavedMs >= timeSavedPreviousMs ? 'text-success' : 'text-text-muted'}`}>{getTrend(timeSavedMs, timeSavedPreviousMs)}</p>
           </div>
 
-          <div className="flex-1 w-full min-h-[150px]">
+          <div className="flex-1 w-full min-h-[140px]">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData} margin={{ top: 5, right: 0, left: -25, bottom: 0 }}>
+              <LineChart data={chartData} margin={{ top: 5, right: 5, left: -25, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.5} />
                 <YAxis axisLine={false} tickLine={false} tick={{fill: 'var(--text-secondary)', fontSize: 9, fontWeight: 500}} tickFormatter={(v) => `${Math.round(v)}m`} />
-                <XAxis dataKey="name" hide />
+                <XAxis dataKey="name" tick={{fill: 'var(--text-secondary)', fontSize: 9, fontWeight: 500}} axisLine={false} tickLine={false} />
                 <Tooltip 
-                  cursor={{stroke: 'var(--border)', strokeWidth: 1, strokeDasharray: '4 4'}} 
-                  contentStyle={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)', borderRadius: '8px', fontSize: '11px', fontWeight: 'bold' }}
+                  cursor={{stroke: 'var(--border-strong)', strokeWidth: 1, strokeDasharray: '4 4'}} 
+                  contentStyle={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border-strong)', borderRadius: '8px', fontSize: '11px', fontWeight: '600', color: 'var(--text-primary)', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}
                   itemStyle={{ color: 'var(--text-primary)' }}
                 />
-                <Line type="monotone" dataKey="time" stroke="var(--warning)" strokeWidth={3} dot={{r: 4, fill: 'var(--surface)', strokeWidth: 2}} activeDot={{r: 6, fill: 'var(--warning)', strokeWidth: 0}} />
+                <Line type="monotone" dataKey="time" stroke="var(--accent)" strokeWidth={2} dot={{r: 3, fill: 'var(--surface)', stroke: 'var(--accent)', strokeWidth: 2}} activeDot={{r: 5, fill: 'var(--accent)', strokeWidth: 0}} />
               </LineChart>
             </ResponsiveContainer>
           </div>

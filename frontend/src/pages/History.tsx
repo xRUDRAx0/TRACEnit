@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { History as HistoryIcon, Search, Clock, Zap, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react';
+import { History as HistoryIcon, Clock, Zap, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react';
 import { API_URL } from '../config';
 
 export default function History() {

@@ -6,7 +6,7 @@ export default function Approvals() {
     <div className="max-w-5xl mx-auto space-y-8">
       <div>
         <h1 className="text-3xl font-bold text-text-primary">Approvals</h1>
-        <p className="mt-2 text-text-secondary">Review and authorize AI-generated automations before they are executed.</p>
+        <p className="mt-2 text-text-secondary">Review and authorize AI-generated automations before execution.</p>
       </div>
 
       <div className="bg-surface rounded-xl shadow-sm border border-border">
@@ -38,10 +38,10 @@ export default function Approvals() {
           </div>
 
           <div className="border-t border-border pt-6 flex justify-end gap-4">
-            <button className="px-6 py-2.5 border border-border text-text-primary rounded-lg font-medium hover:bg-surface-secondary transition-colors flex items-center gap-2">
+            <button className="btn-secondary text-sm py-2.5 px-6 flex items-center gap-2">
               <X className="w-4 h-4" /> Reject Plan
             </button>
-            <button className="px-6 py-2.5 bg-accent hover:bg-accent-hover text-white rounded-lg font-medium transition-colors flex items-center gap-2 shadow-sm">
+            <button className="btn-primary text-sm py-2.5 px-6 flex items-center gap-2">
               <Check className="w-4 h-4" /> Approve & Execute
             </button>
           </div>

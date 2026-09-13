@@ -1,11 +1,17 @@
 import React from 'react';
 
-export default function TraceLogo({ className = "" }: { className?: string }) {
+interface TraceLogoProps {
+  className?: string;
+  style?: React.CSSProperties;
+}
+
+export default function TraceLogo({ className = "", style }: TraceLogoProps) {
   return (
     <svg 
       viewBox="0 0 100 40" 
       height="1em"
       className={className}
+      style={style}
       fill="none" 
       xmlns="http://www.w3.org/2000/svg"
     >

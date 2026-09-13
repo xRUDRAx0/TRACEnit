@@ -12,11 +12,11 @@ export default function EvidenceModal({ events, title, onClose }: EvidenceModalP
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="w-full max-w-2xl bg-background border border-border rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+      <div className="w-full max-w-2xl bg-background border border-border rounded-lg shadow-lg overflow-hidden flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-border bg-surface-secondary/30">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-accent/20 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-md bg-accent/20 flex items-center justify-center">
               <Search className="w-5 h-5 text-accent" />
             </div>
             <div>
@@ -48,8 +48,8 @@ export default function EvidenceModal({ events, title, onClose }: EvidenceModalP
 
               return (
                 <div key={i} className="relative">
-                  <div className="flex gap-4 items-center bg-surface-secondary/50 border border-border rounded-xl p-4">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${bg}`}>
+                  <div className="flex gap-4 items-center bg-surface-secondary/50 border border-border rounded-md p-4">
+                    <div className={`w-10 h-10 rounded-md flex items-center justify-center shrink-0 ${bg}`}>
                       {React.createElement(icon, { className: `w-5 h-5 ${color}` })}
                     </div>
                     <div className="flex-1">

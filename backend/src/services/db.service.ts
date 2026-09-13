@@ -1,35 +1,25 @@
-import * as admin from 'firebase-admin';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-// Check if Firebase Admin is initialized, if not initialize it (only if service account is provided)
-const serviceAccountEnv = process.env.FIREBASE_SERVICE_ACCOUNT;
-let useFirestore = false;
+// ============================================================
+// Supabase Client Initialization
+// ============================================================
+const supabaseUrl = process.env.SUPABASE_URL!;
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY!;
 
-if (serviceAccountEnv) {
-  try {
-    let serviceAccount;
-    try {
-      // First try to parse it directly as a JSON string (useful for cloud env vars like Render)
-      serviceAccount = JSON.parse(serviceAccountEnv);
-    } catch (e) {
-      // Fallback to treating it as a file path
-      serviceAccount = require(serviceAccountEnv);
-    }
-
-    if (!admin.apps.length) {
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
-      });
-      console.log('Firebase Admin initialized with Firestore.');
-      useFirestore = true;
-    }
-  } catch (error) {
-    console.warn('Failed to initialize Firebase Admin. Falling back to local memory store.', error);
-  }
-} else {
-  console.log('No FIREBASE_SERVICE_ACCOUNT found in .env. Falling back to local memory store.');
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error(
+    'SUPABASE_URL and SUPABASE_ANON_KEY must be set in your .env file. ' +
+    'See backend/.env.example for configuration.'
+  );
 }
 
-// Interfaces
+const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKey);
+console.log('Supabase client initialized:', supabaseUrl);
+
+// ============================================================
+// TypeScript Interfaces (unchanged — preserves all API contracts)
+// ============================================================
+
 export interface AiAnalysisResult {
   workflowName: string;
   summary: string;
@@ -66,10 +56,10 @@ export interface Workflow {
 
 export interface WorkflowEvent {
   id: string;
-  workflowId?: string; // Legacy/pattern association
-  sessionId?: string; // Primary observation session association
+  workflowId?: string;
+  sessionId?: string;
   timestamp: string;
-  application: 'Gmail' | 'Spreadsheet' | 'Report';
+  application: 'Gmail' | 'Spreadsheet' | 'Report' | string;
   action: string;
   target: string;
   metadata?: Record<string, any>;
@@ -94,21 +84,21 @@ export interface AutomationPlan {
   status: 'Draft' | 'Approved';
   version: number;
   confidence: number;
-  estimatedManualDuration: number; // in seconds
-  timeSavedPerRun: number; // in seconds
+  estimatedManualDuration: number;
+  timeSavedPerRun: number;
   successRate: number;
   executionCount: number;
   averageDuration: number;
   applications: string[];
   variables: string[];
-  intent?: string; // Natural language intent
+  intent?: string;
 }
 
 export interface StepResult {
   step: string;
   status: 'Pending' | 'Running' | 'WaitingForApproval' | 'Completed' | 'Failed' | 'Recovering' | 'Verifying' | 'Cancelled';
   originalAction?: string;
-  recoveryReason?: string; // Feature 9: Why did TRACE do this?
+  recoveryReason?: string;
 }
 
 export interface ExecutionRun {
@@ -120,323 +110,415 @@ export interface ExecutionRun {
   context?: Record<string, any>;
   startedAt: number;
   completedAt?: number;
-  timeSaved?: number; // feature 8, 10
+  timeSaved?: number;
 }
 
-// Preload Demo Automation
-const demoSalesAutomation: AutomationPlan = {
-  id: 'auto_demo_sales',
-  name: 'Weekly Sales Report',
-  workflowId: 'wf_demo',
-  trigger: { type: 'manual' },
-  status: 'Approved',
-  version: 3,
-  confidence: 96,
-  estimatedManualDuration: 272, // 4m 32s
-  timeSavedPerRun: 260, // 4m 20s
-  successRate: 98,
-  executionCount: 14,
-  averageDuration: 12,
-  applications: ['Excel', 'Email'],
-  variables: ['current_week'],
-  intent: 'Run my weekly sales report',
-  steps: [
-    { type: 'receive_weekly_sales_email' },
-    { type: 'download_sales_csv' },
-    { type: 'open_spreadsheet' },
-    { type: 'clean_invalid_rows' },
-    { type: 'calculate_total_sales' },
-    { type: 'calculate_average_order_value' },
-    { type: 'update_management_report' },
-    { type: 'generate_summary' },
-    { type: 'human_approval', originalAction: 'send_summary' }
-  ]
-};
+// ============================================================
+// Row mapping helpers (DB snake_case <-> TS camelCase)
+// ============================================================
 
-import fs from 'fs';
-import path from 'path';
+function rowToSession(row: any): ObservationSession {
+  return {
+    id: row.id,
+    startedAt: row.started_at,
+    endedAt: row.ended_at ?? undefined,
+    status: row.status,
+    durationInSeconds: row.duration_in_seconds,
+    eventCount: row.event_count,
+  };
+}
 
-// Local In-Memory Fallback with JSON persistence
-const DB_FILE = path.join(process.cwd(), 'local_db.json');
+function sessionToRow(s: ObservationSession) {
+  return {
+    id: s.id,
+    started_at: s.startedAt,
+    ended_at: s.endedAt ?? null,
+    status: s.status,
+    duration_in_seconds: s.durationInSeconds,
+    event_count: s.eventCount,
+  };
+}
 
-let memoryWorkflows: Workflow[] = [];
-let memorySessions: ObservationSession[] = [];
-let memoryEvents: WorkflowEvent[] = [];
-let memoryAutomations: AutomationPlan[] = [demoSalesAutomation];
-let memoryExecutions: ExecutionRun[] = [];
-let observationSettings = { active: false };
+function rowToWorkflow(row: any): Workflow {
+  return {
+    id: row.id,
+    name: row.name,
+    status: row.status,
+    createdAt: row.created_at,
+    durationInSeconds: row.duration_in_seconds,
+    eventCount: row.event_count,
+  };
+}
+
+function workflowToRow(w: Workflow) {
+  return {
+    id: w.id,
+    name: w.name,
+    status: w.status,
+    created_at: w.createdAt,
+    duration_in_seconds: w.durationInSeconds,
+    event_count: w.eventCount,
+  };
+}
+
+function rowToEvent(row: any): WorkflowEvent {
+  return {
+    id: row.id,
+    workflowId: row.workflow_id ?? undefined,
+    sessionId: row.session_id ?? undefined,
+    timestamp: row.timestamp,
+    application: row.application,
+    action: row.action,
+    target: row.element_name ?? row.target ?? '',
+    metadata: row.metadata ?? {},
+  };
+}
+
+function eventToRow(e: WorkflowEvent) {
+  return {
+    id: e.id,
+    workflow_id: e.workflowId ?? null,
+    session_id: e.sessionId ?? null,
+    timestamp: e.timestamp,
+    application: e.application,
+    action: e.action,
+    element_name: e.target ?? null,
+    metadata: e.metadata ?? {},
+  };
+}
+
+function rowToAutomation(row: any): AutomationPlan {
+  return {
+    id: row.id,
+    name: row.name,
+    workflowId: row.workflow_id,
+    trigger: row.trigger,
+    steps: row.steps,
+    status: row.status,
+    version: row.version,
+    confidence: Number(row.confidence),
+    estimatedManualDuration: row.estimated_manual_duration,
+    timeSavedPerRun: row.time_saved_per_run,
+    successRate: Number(row.success_rate),
+    executionCount: row.execution_count,
+    averageDuration: row.average_duration,
+    applications: row.applications ?? [],
+    variables: row.variables ?? [],
+    intent: row.intent ?? undefined,
+  };
+}
+
+function automationToRow(p: AutomationPlan) {
+  return {
+    id: p.id,
+    name: p.name,
+    workflow_id: p.workflowId,
+    trigger: p.trigger,
+    steps: p.steps,
+    status: p.status,
+    version: p.version,
+    confidence: p.confidence,
+    estimated_manual_duration: p.estimatedManualDuration,
+    time_saved_per_run: p.timeSavedPerRun,
+    success_rate: p.successRate,
+    execution_count: p.executionCount,
+    average_duration: p.averageDuration,
+    applications: p.applications,
+    variables: p.variables,
+    intent: p.intent ?? null,
+  };
+}
+
+function rowToExecution(row: any): ExecutionRun {
+  return {
+    runId: row.run_id,
+    automationId: row.automation_id,
+    status: row.status,
+    currentStepIndex: row.current_step_index,
+    stepResults: row.step_results ?? [],
+    context: row.context ?? {},
+    startedAt: row.started_at,
+    completedAt: row.completed_at ?? undefined,
+    timeSaved: row.time_saved ?? undefined,
+  };
+}
+
+function executionToRow(r: ExecutionRun) {
+  return {
+    run_id: r.runId,
+    automation_id: r.automationId,
+    status: r.status,
+    current_step_index: r.currentStepIndex,
+    step_results: r.stepResults,
+    context: r.context ?? {},
+    started_at: r.startedAt,
+    completed_at: r.completedAt ?? null,
+    time_saved: r.timeSaved ?? null,
+  };
+}
+
+// ============================================================
+// Helper: throw on Supabase errors
+// ============================================================
+function assertNoError(error: any, context: string) {
+  if (error) {
+    console.error(`[DbService] Supabase error in ${context}:`, error.message);
+    throw new Error(`Supabase ${context} failed: ${error.message}`);
+  }
+}
+
+// ============================================================
+// In-memory runtime state (not persisted — intentional)
+// ============================================================
 let activeSessionId: string | null = null;
-let cachedAiAnalysis: AiAnalysisResult | null = null;
 
-// Load from disk
-try {
-  if (fs.existsSync(DB_FILE)) {
-    const data = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
-    memoryWorkflows = data.workflows || [];
-    memorySessions = data.sessions || [];
-    memoryEvents = data.events || [];
-    memoryAutomations = data.automations || [demoSalesAutomation];
-    memoryExecutions = data.executions || [];
-    observationSettings = data.settings || { active: false };
-    activeSessionId = data.activeSessionId || null;
-    cachedAiAnalysis = data.cachedAiAnalysis || null;
-  }
-} catch (e) {
-  console.error("Failed to load local DB", e);
-}
-
-// Save to disk helper
-const saveLocalDB = () => {
-  if (useFirestore) return;
-  try {
-    fs.writeFileSync(DB_FILE, JSON.stringify({
-      workflows: memoryWorkflows,
-      sessions: memorySessions,
-      events: memoryEvents,
-      automations: memoryAutomations,
-      executions: memoryExecutions,
-      settings: observationSettings,
-      activeSessionId,
-      cachedAiAnalysis
-    }, null, 2));
-  } catch (e) {
-    console.error("Failed to save local DB", e);
-  }
-};
-
+// ============================================================
+// DbService — Supabase PostgreSQL implementation
+// ============================================================
 export class DbService {
-  async saveWorkflow(workflow: Workflow): Promise<void> {
-    if (useFirestore) {
-      await admin.firestore().collection('workflows').doc(workflow.id).set(workflow);
-    } else {
-      memoryWorkflows.push(workflow);
-      saveLocalDB();
-    }
+
+  // ----------------------------------------------------------
+  // Active session tracking (runtime only, not DB-persisted)
+  // ----------------------------------------------------------
+
+  getActiveWorkflowId(): string | null {
+    return activeSessionId;
   }
 
-  getActiveWorkflowId() {
-    return activeSessionId; // Keeping method name for compatibility with some files, but it returns sessionId
-  }
-
-  setActiveWorkflowId(id: string | null) {
+  setActiveWorkflowId(id: string | null): void {
     activeSessionId = id;
   }
 
-  async saveSession(session: ObservationSession): Promise<void> {
-    if (useFirestore) {
-      await admin.firestore().collection('sessions').doc(session.id).set(session);
-    } else {
-      const idx = memorySessions.findIndex(s => s.id === session.id);
-      if (idx >= 0) memorySessions[idx] = session;
-      else memorySessions.push(session);
-      saveLocalDB();
-    }
-  }
+  // ----------------------------------------------------------
+  // Workflows
+  // ----------------------------------------------------------
 
-  async getSessionById(sessionId: string): Promise<ObservationSession | null> {
-    if (useFirestore) {
-      const doc = await admin.firestore().collection('sessions').doc(sessionId).get();
-      return doc.exists ? (doc.data() as ObservationSession) : null;
-    }
-    return memorySessions.find(s => s.id === sessionId) || null;
-  }
-
-  async getSessions(): Promise<ObservationSession[]> {
-    if (useFirestore) {
-      const snapshot = await admin.firestore().collection('sessions').orderBy('startedAt', 'desc').get();
-      return snapshot.docs.map(doc => doc.data() as ObservationSession);
-    }
-    return [...memorySessions].sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime());
+  async saveWorkflow(workflow: Workflow): Promise<void> {
+    const { error } = await supabase
+      .from('workflows')
+      .upsert(workflowToRow(workflow), { onConflict: 'id' });
+    assertNoError(error, 'saveWorkflow');
   }
 
   async getWorkflows(): Promise<Workflow[]> {
-    if (useFirestore) {
-      const snapshot = await admin.firestore().collection('workflows').get();
-      return snapshot.docs.map(doc => doc.data() as Workflow);
-    }
-    return [...memoryWorkflows];
+    const { data, error } = await supabase
+      .from('workflows')
+      .select('*')
+      .order('created_at', { ascending: false });
+    assertNoError(error, 'getWorkflows');
+    return (data ?? []).map(rowToWorkflow);
   }
 
+  // ----------------------------------------------------------
+  // Observation Sessions
+  // ----------------------------------------------------------
+
+  async saveSession(session: ObservationSession): Promise<void> {
+    const { error } = await supabase
+      .from('observation_sessions')
+      .upsert(sessionToRow(session), { onConflict: 'id' });
+    assertNoError(error, 'saveSession');
+  }
+
+  async getSessionById(sessionId: string): Promise<ObservationSession | null> {
+    const { data, error } = await supabase
+      .from('observation_sessions')
+      .select('*')
+      .eq('id', sessionId)
+      .maybeSingle();
+    assertNoError(error, 'getSessionById');
+    return data ? rowToSession(data) : null;
+  }
+
+  async getSessions(): Promise<ObservationSession[]> {
+    const { data, error } = await supabase
+      .from('observation_sessions')
+      .select('*')
+      .order('started_at', { ascending: false });
+    assertNoError(error, 'getSessions');
+    return (data ?? []).map(rowToSession);
+  }
+
+  // ----------------------------------------------------------
+  // Workflow Events
+  // ----------------------------------------------------------
+
   async saveEvents(events: WorkflowEvent[]): Promise<void> {
-    if (useFirestore) {
-      const batch = admin.firestore().batch();
-      events.forEach(event => {
-        const ref = admin.firestore().collection('workflow_events').doc(event.id);
-        batch.set(ref, event);
-      });
-      await batch.commit();
-    } else {
-      memoryEvents.push(...events);
-      saveLocalDB();
-    }
+    if (events.length === 0) return;
+    const rows = events.map(eventToRow);
+    const { error } = await supabase
+      .from('workflow_events')
+      .upsert(rows, { onConflict: 'id' });
+    assertNoError(error, 'saveEvents');
   }
 
   async getEventsByWorkflowId(workflowId: string): Promise<WorkflowEvent[]> {
-    if (useFirestore) {
-      const snapshot = await admin.firestore().collection('workflow_events')
-        .where('workflowId', '==', workflowId)
-        .get();
-      return snapshot.docs.map(doc => doc.data() as WorkflowEvent);
-    }
-    return memoryEvents.filter(e => e.workflowId === workflowId);
+    const { data, error } = await supabase
+      .from('workflow_events')
+      .select('*')
+      .eq('workflow_id', workflowId);
+    assertNoError(error, 'getEventsByWorkflowId');
+    return (data ?? []).map(rowToEvent);
   }
 
   async getEventsBySessionId(sessionId: string): Promise<WorkflowEvent[]> {
-    if (useFirestore) {
-      const snapshot = await admin.firestore().collection('workflow_events')
-        .where('sessionId', '==', sessionId)
-        .orderBy('timestamp', 'asc')
-        .get();
-      return snapshot.docs.map(doc => doc.data() as WorkflowEvent);
-    }
-    return memoryEvents.filter(e => e.sessionId === sessionId).sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-  }
-
-  async saveAutomation(plan: AutomationPlan): Promise<void> {
-    if (useFirestore) {
-      await admin.firestore().collection('automations').doc(plan.id).set(plan);
-    } else {
-      const idx = memoryAutomations.findIndex(a => a.id === plan.id);
-      if (idx >= 0) memoryAutomations[idx] = plan;
-      else memoryAutomations.push(plan);
-      saveLocalDB();
-    }
-  }
-
-  async getAutomationById(planId: string): Promise<AutomationPlan | null> {
-    if (useFirestore) {
-      const doc = await admin.firestore().collection('automations').doc(planId).get();
-      return doc.exists ? (doc.data() as AutomationPlan) : null;
-    }
-    return memoryAutomations.find(a => a.id === planId) || null;
-  }
-
-  async getAllAutomations(): Promise<AutomationPlan[]> {
-    if (useFirestore) {
-      const snapshot = await admin.firestore().collection('automations').get();
-      return snapshot.docs.map(doc => doc.data() as AutomationPlan);
-    }
-    return [...memoryAutomations];
-  }
-
-  async deleteAutomation(planId: string): Promise<void> {
-    if (useFirestore) {
-      const batch = admin.firestore().batch();
-      batch.delete(admin.firestore().collection('automations').doc(planId));
-      
-      const execs = await admin.firestore().collection('executions').where('automationId', '==', planId).get();
-      execs.forEach(doc => batch.delete(doc.ref));
-      
-      await batch.commit();
-    } else {
-      memoryAutomations = memoryAutomations.filter(a => a.id !== planId);
-      memoryExecutions = memoryExecutions.filter(e => e.automationId !== planId);
-      saveLocalDB();
-    }
-  }
-
-  async clearObservationData(): Promise<void> {
-    if (useFirestore) {
-      const batch = admin.firestore().batch();
-      
-      const events = await admin.firestore().collection('events').get();
-      events.forEach(doc => batch.delete(doc.ref));
-      
-      const sessions = await admin.firestore().collection('sessions').get();
-      sessions.forEach(doc => batch.delete(doc.ref));
-      
-      const workflows = await admin.firestore().collection('workflows').get();
-      workflows.forEach(doc => batch.delete(doc.ref));
-
-      await batch.commit();
-    } else {
-      memoryEvents = [];
-      memorySessions = [];
-      memoryWorkflows = [];
-      cachedAiAnalysis = null;
-      saveLocalDB();
-    }
-  }
-
-  async saveExecutionRun(run: ExecutionRun): Promise<void> {
-    if (useFirestore) {
-      await admin.firestore().collection('executions').doc(run.runId).set(run);
-    } else {
-      const idx = memoryExecutions.findIndex(e => e.runId === run.runId);
-      if (idx >= 0) memoryExecutions[idx] = run;
-      else memoryExecutions.push(run);
-      saveLocalDB();
-    }
-  }
-
-  async getExecutionRun(runId: string): Promise<ExecutionRun | null> {
-    if (useFirestore) {
-      const doc = await admin.firestore().collection('executions').doc(runId).get();
-      return doc.exists ? (doc.data() as ExecutionRun) : null;
-    }
-    return memoryExecutions.find(e => e.runId === runId) || null;
-  }
-
-  async getLatestCompletedExecution(automationId: string): Promise<ExecutionRun | null> {
-    if (useFirestore) {
-      const snapshot = await admin.firestore().collection('executions')
-        .where('automationId', '==', automationId)
-        .where('status', '==', 'Completed')
-        .orderBy('completedAt', 'desc')
-        .limit(1)
-        .get();
-      return snapshot.docs.length ? (snapshot.docs[0].data() as ExecutionRun) : null;
-    }
-    const completed = memoryExecutions.filter(e => e.automationId === automationId && e.status === 'Completed');
-    return completed.sort((a, b) => Number(b.completedAt || 0) - Number(a.completedAt || 0))[0] || null;
-  }
-
-  async getAllExecutions(): Promise<ExecutionRun[]> {
-    if (useFirestore) {
-      const snapshot = await admin.firestore().collection('executions').orderBy('startedAt', 'desc').get();
-      return snapshot.docs.map(doc => doc.data() as ExecutionRun);
-    }
-    return memoryExecutions.sort((a, b) => Number(b.startedAt) - Number(a.startedAt));
+    const { data, error } = await supabase
+      .from('workflow_events')
+      .select('*')
+      .eq('session_id', sessionId)
+      .order('timestamp', { ascending: true });
+    assertNoError(error, 'getEventsBySessionId');
+    return (data ?? []).map(rowToEvent);
   }
 
   async getAllEvents(): Promise<WorkflowEvent[]> {
-    if (useFirestore) {
-      const snapshot = await admin.firestore().collection('events').orderBy('timestamp', 'desc').get();
-      return snapshot.docs.map(doc => doc.data() as WorkflowEvent);
-    }
-    return memoryEvents.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    const { data, error } = await supabase
+      .from('workflow_events')
+      .select('*')
+      .order('timestamp', { ascending: false });
+    assertNoError(error, 'getAllEvents');
+    return (data ?? []).map(rowToEvent);
   }
 
+  // ----------------------------------------------------------
+  // Automation Plans
+  // ----------------------------------------------------------
+
+  async saveAutomation(plan: AutomationPlan): Promise<void> {
+    const { error } = await supabase
+      .from('automation_plans')
+      .upsert(automationToRow(plan), { onConflict: 'id' });
+    assertNoError(error, 'saveAutomation');
+  }
+
+  async getAutomationById(planId: string): Promise<AutomationPlan | null> {
+    const { data, error } = await supabase
+      .from('automation_plans')
+      .select('*')
+      .eq('id', planId)
+      .maybeSingle();
+    assertNoError(error, 'getAutomationById');
+    return data ? rowToAutomation(data) : null;
+  }
+
+  async getAllAutomations(): Promise<AutomationPlan[]> {
+    const { data, error } = await supabase
+      .from('automation_plans')
+      .select('*');
+    assertNoError(error, 'getAllAutomations');
+    return (data ?? []).map(rowToAutomation);
+  }
+
+  async deleteAutomation(planId: string): Promise<void> {
+    // Execution runs have ON DELETE CASCADE in the schema, so deleting the plan is enough.
+    const { error } = await supabase
+      .from('automation_plans')
+      .delete()
+      .eq('id', planId);
+    assertNoError(error, 'deleteAutomation');
+  }
+
+  // ----------------------------------------------------------
+  // Execution Runs
+  // ----------------------------------------------------------
+
+  async saveExecutionRun(run: ExecutionRun): Promise<void> {
+    const { error } = await supabase
+      .from('execution_runs')
+      .upsert(executionToRow(run), { onConflict: 'run_id' });
+    assertNoError(error, 'saveExecutionRun');
+  }
+
+  async getExecutionRun(runId: string): Promise<ExecutionRun | null> {
+    const { data, error } = await supabase
+      .from('execution_runs')
+      .select('*')
+      .eq('run_id', runId)
+      .maybeSingle();
+    assertNoError(error, 'getExecutionRun');
+    return data ? rowToExecution(data) : null;
+  }
+
+  async getLatestCompletedExecution(automationId: string): Promise<ExecutionRun | null> {
+    const { data, error } = await supabase
+      .from('execution_runs')
+      .select('*')
+      .eq('automation_id', automationId)
+      .eq('status', 'Completed')
+      .order('completed_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    assertNoError(error, 'getLatestCompletedExecution');
+    return data ? rowToExecution(data) : null;
+  }
+
+  async getAllExecutions(): Promise<ExecutionRun[]> {
+    const { data, error } = await supabase
+      .from('execution_runs')
+      .select('*')
+      .order('started_at', { ascending: false });
+    assertNoError(error, 'getAllExecutions');
+    return (data ?? []).map(rowToExecution);
+  }
+
+  // ----------------------------------------------------------
+  // Application Settings & AI Analysis Cache
+  // ----------------------------------------------------------
+
   async getObservationSettings(): Promise<{ active: boolean }> {
-    if (useFirestore) {
-      const doc = await admin.firestore().collection('settings').doc('observation').get();
-      return doc.exists ? (doc.data() as { active: boolean }) : { active: true };
-    }
-    return observationSettings;
+    const { data, error } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'observation')
+      .maybeSingle();
+    assertNoError(error, 'getObservationSettings');
+    return (data?.value as { active: boolean }) ?? { active: false };
   }
 
   async saveObservationSettings(settings: { active: boolean }): Promise<void> {
-    if (useFirestore) {
-      await admin.firestore().collection('settings').doc('observation').set(settings);
-      return;
-    }
-    observationSettings = settings;
-    saveLocalDB();
+    const { error } = await supabase
+      .from('app_settings')
+      .upsert({ key: 'observation', value: settings, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+    assertNoError(error, 'saveObservationSettings');
   }
 
   async saveAiAnalysis(analysis: AiAnalysisResult): Promise<void> {
-    cachedAiAnalysis = analysis;
-    if (useFirestore) {
-      await admin.firestore().collection('settings').doc('ai_analysis').set(analysis);
-    }
-    saveLocalDB();
+    const { error } = await supabase
+      .from('app_settings')
+      .upsert({ key: 'ai_analysis', value: analysis, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+    assertNoError(error, 'saveAiAnalysis');
   }
 
   async getAiAnalysis(): Promise<AiAnalysisResult | null> {
-    if (useFirestore) {
-      const doc = await admin.firestore().collection('settings').doc('ai_analysis').get();
-      return doc.exists ? (doc.data() as AiAnalysisResult) : null;
-    }
-    return cachedAiAnalysis;
+    const { data, error } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'ai_analysis')
+      .maybeSingle();
+    assertNoError(error, 'getAiAnalysis');
+    return data ? (data.value as AiAnalysisResult) : null;
+  }
+
+  // ----------------------------------------------------------
+  // Clear all observation data (used when starting a fresh session)
+  // ----------------------------------------------------------
+
+  async clearObservationData(): Promise<void> {
+    // Delete in order: events → sessions → workflows (FK constraints respected)
+    const { error: evErr } = await supabase.from('workflow_events').delete().neq('id', '');
+    assertNoError(evErr, 'clearObservationData:events');
+
+    const { error: sessErr } = await supabase.from('observation_sessions').delete().neq('id', '');
+    assertNoError(sessErr, 'clearObservationData:sessions');
+
+    const { error: wfErr } = await supabase.from('workflows').delete().neq('id', '');
+    assertNoError(wfErr, 'clearObservationData:workflows');
+
+    // Also clear cached AI analysis
+    const { error: aiErr } = await supabase
+      .from('app_settings')
+      .delete()
+      .eq('key', 'ai_analysis');
+    assertNoError(aiErr, 'clearObservationData:ai_analysis');
   }
 }
